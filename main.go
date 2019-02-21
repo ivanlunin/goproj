@@ -1,91 +1,35 @@
 package main
 
 import (
-	"fmt"
-	"database/sql"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
+	"log"
 	"net/http"
-	"html/template"
-	_ "github.com/lib/pq"
-	"os"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/ivanlunin/goproj/controllers"
+	"github.com/ivanlunin/goproj/models"
 )
-
-const (
-        DB_USER     = "postgres"
-        DB_PASSWORD = "korova228"
-        DB_NAME     = "postgres"
-)
-
-var db *sql.DB
-
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	// fmt.Fprintf(w, "Home page")
-	t, _ := template.ParseFiles("templates/page.html")
-	t.Execute(w, nil)
-}
-
-func AddPostHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-        http.Error(w, http.StatusText(405), 405)
-        return
-    }
-
-	title := r.FormValue("title")
-    info := r.FormValue("info")
-
-	fmt.Printf("%3v | %8v\n", title, info)
-	
-    if title == "" || info == "" {
-        http.Error(w, http.StatusText(400), 400)
-        return
-    }
-	
-	_, err := db.Exec("INSERT INTO posts(title, info) VALUES($1, $2)", title, info)
-	
-	if err != nil {
-		http.Error(w, http.StatusText(500), 500)
-		return
-    }
-}
-
-func UsersHandler(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query("SELECT * FROM users;")
-	defer rows.Close()
-	checkErr(err)
-	
-	for rows.Next() {
-            var username string
-            var password string
-			
-            _ = rows.Scan(&username, &password)
-            
-            fmt.Fprintf(w, "%3v | %8v\n", username, password)
-    }
-	// t, _ := template.ParseFiles("templates/page.html")
-    // t.Execute(w, nil)
-}
 
 func main() {
+	db := &models.Database{}
+	db.Init()
 
-	var err error
-	dbinfo := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", DB_USER, DB_PASSWORD, DB_NAME)
-	db, err = sql.Open("postgres", dbinfo)
-	checkErr(err)
-    defer db.Close()
-	
+	controllers.SetDatabase(db)
+
 	router := mux.NewRouter()
-	router.HandleFunc("/", HomeHandler).Methods("GET")
-	router.HandleFunc("/get_users", UsersHandler).Methods("GET")
-	router.HandleFunc("/add_post", AddPostHandler).Methods("POST")
-	
-	fmt.Println("Server started...")
-	loggedRouter := handlers.LoggingHandler(os.Stdout, router)
-	http.ListenAndServe(":1337", loggedRouter)
-}
+	router.HandleFunc("/", controllers.HomeHandler).Methods("GET")
+	router.HandleFunc("/api/v1/get_posts", controllers.GetPostsHandler).Methods("GET")
+	router.HandleFunc("/api/v1/get_post/{id:[0-9]+}", controllers.GetSinglePostHandler).Methods("GET")
+	router.HandleFunc("/api/v1/add_post", controllers.AddPostHandler).Methods("POST")
 
-func checkErr(err error) {
-	if err != nil {
-		panic(err)
+	srv := &http.Server{
+		Handler: router,
+		Addr:    "127.0.0.1:8080",
+		// Good practice to set timeouts to avoid Slowloris attacks.
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		IdleTimeout:  time.Second * 60,
 	}
+
+	log.Fatal(srv.ListenAndServe())
 }
