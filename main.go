@@ -17,7 +17,6 @@ func main() {
 	controllers.SetDatabase(db)
 
 	router := mux.NewRouter()
-	router.HandleFunc("/", controllers.HomeHandler).Methods("GET")
 	router.HandleFunc("/api/v1/get_posts", controllers.GetPostsHandler).Methods("GET")
 	router.HandleFunc("/api/v1/get_post/{id:[0-9]+}", controllers.GetSinglePostHandler).Methods("GET")
 	router.HandleFunc("/api/v1/add_post", controllers.AddPostHandler).Methods("POST")
